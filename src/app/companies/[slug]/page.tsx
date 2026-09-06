@@ -9,6 +9,8 @@ import {
   dataProvenanceTone,
 } from "@/lib/company";
 
+export const dynamic = "force-dynamic";
+
 export default async function CompanyDetailPage({
   params,
 }: {

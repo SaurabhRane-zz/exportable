@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { companyKindLabel, dataProvenanceLabel } from "@/lib/company";
 
+export const dynamic = "force-dynamic";
+
 type SP = { [k: string]: string | undefined };
 
 export default async function CompaniesIndexPage({
