@@ -38,6 +38,39 @@ npm run db:seed      # re-run seed only
 
 ---
 
+## Docker
+
+A multi-stage `Dockerfile` is included so the app can run in a sandboxed container without installing Node or Prisma on the host.
+
+```bash
+docker build -t exportable .
+docker run --rm -p 3000:3000 exportable
+```
+
+Then open <http://localhost:3000>.
+
+The image bakes a seeded SQLite database at `/app/prisma/dev.db`. Restarting the container preserves the data, but `docker run` without a volume does **not** persist data across container removal. To keep the DB between runs, mount a volume on the `prisma/` directory:
+
+```bash
+docker run --rm -p 3000:3000 -v exportable-data:/app/prisma exportable
+```
+
+After editing `prisma/seed.ts` or `prisma/schema.prisma`, rebuild without the cache so the new DB is baked in:
+
+```bash
+docker build --no-cache -t exportable .
+```
+
+The Q&A endpoint can be smoke-tested from the host:
+
+```bash
+curl -s http://localhost:3000/api/qa \
+  -X POST -H 'content-type: application/json' \
+  -d '{"question":"handicrafts with low capital"}'
+```
+
+---
+
 ## Project structure
 
 ```
