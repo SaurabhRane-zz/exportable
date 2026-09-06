@@ -128,6 +128,7 @@ function Group({
     id: string;
     slug: string;
     name: string;
+    kind: string;
     shortDescription: string | null;
     country: string;
     countryName: string;
