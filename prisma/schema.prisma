@@ -1,0 +1,177 @@
+// Indian Exportable Products Researcher & Recommendation Engine
+// Phase 1 — flexible catalog + sources data model
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Taxonomy ----------
+
+model Sector {
+  id          String     @id @default(cuid())
+  slug        String     @unique
+  name        String
+  description String
+  imageEmoji  String? // small visual cue in the catalog
+  order       Int        @default(100)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  categories  Category[]
+  products    Product[]
+  sources     Source[]   @relation("SectorSources")
+
+  @@index([order])
+}
+
+model Category {
+  id           String         @id @default(cuid())
+  slug         String
+  name         String
+  description  String?
+  sectorId     String
+  sector       Sector         @relation(fields: [sectorId], references: [id], onDelete: Cascade)
+  subcategories Subcategory[]
+  products     Product[]
+  attributeValues SpecializedAttributeValue[] @relation("CategoryAttrs")
+
+  @@unique([sectorId, slug])
+}
+
+model Subcategory {
+  id          String     @id @default(cuid())
+  slug        String
+  name        String
+  description String?
+  categoryId  String
+  category    Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  products    Product[]
+
+  @@unique([categoryId, slug])
+}
+
+model Product {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  name            String
+  shortDescription String
+  longDescription String?
+  hsCode          String?  // Indian export HS code, when known
+  indicativePriceUsd String? // e.g. "USD 3–6 / kg"
+  capitalLevel    String?  // "Low" | "Medium" | "High"
+  exportDemand    String?  // "Low" | "Medium" | "High" | "Very High"
+  competition     String?  // "Low" | "Medium" | "High"
+  applications    String?  // newline-separated
+  typicalBuyers   String?  // newline-separated
+  targetIndustries String? // newline-separated
+  targetMarkets   String?  // newline-separated (regions / countries)
+  isSample        Boolean  @default(true) // explicitly label demo data
+
+  sectorId        String
+  sector          Sector   @relation(fields: [sectorId], references: [id])
+  categoryId      String?
+  category        Category? @relation(fields: [categoryId], references: [id])
+  subcategoryId   String?
+  subcategory     Subcategory? @relation(fields: [subcategoryId], references: [id])
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  attributeValues SpecializedAttributeValue[] @relation("ProductAttrs")
+  sources         ProductSource[]
+
+  @@index([sectorId])
+  @@index([categoryId])
+  @@index([hsCode])
+}
+
+// ---------- Sources / Citations ----------
+// Note: SQLite + Prisma doesn't support native enums, so source `type` and `authority`
+// are stored as strings. Allowed values are documented below and validated at the
+// application layer.
+//
+//   type       : GOVERNMENT | INDUSTRY_BODY | DIRECTORY | MARKETPLACE | THIRD_PARTY | AI_DERIVED
+//   authority  : L1_OFFICIAL | L2_INDUSTRY | L3_DIRECTORY | L4_MARKETPLACE | L5_THIRD_PARTY | L6_AI_DERIVED
+
+model Source {
+  id             String        @id @default(cuid())
+  name           String
+  url            String?
+  type           String        // string for SQLite portability; values mirror SourceType
+  authority      String        // string; values mirror AuthorityLevel
+  retrievalDate  DateTime?
+  notes          String?
+
+  sectors        Sector[]      @relation("SectorSources")
+  products       ProductSource[]
+
+  createdAt      DateTime      @default(now())
+
+  @@index([type])
+}
+
+model ProductSource {
+  productId String
+  sourceId  String
+  // Where on the source the fact came from (e.g. "HS 0901 — Coffee", or "FIEO exporter directory").
+  // Defaults to "—" so the (productId, sourceId, reference) composite key stays valid.
+  reference String   @default("—")
+  // Whether the fact is sourced directly or AI-inferred from the source
+  factKind  String   @default("SOURCED") // SOURCED | AI_DERIVED
+
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  source    Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@id([productId, sourceId, reference])
+}
+
+// ---------- Flexible specialized attributes ----------
+// A SpecializedAttribute is a configurable fact type (e.g. "GI tag", "REACH compliance",
+// "Halal certification"). Values can attach to a product, a category, a sector, or a
+// region/country. New attribute types can be added with no schema change.
+
+model SpecializedAttribute {
+  id          String   @id @default(cuid())
+  key         String   @unique // e.g. "gi_tag", "reach_compliance", "halal_cert"
+  label       String              // human-readable, e.g. "Geographical Indication (GI)"
+  description String?
+  // TEXT, BOOLEAN, NUMBER, URL, LIST
+  valueType   String   @default("TEXT")
+  // Optional grouping for UI (e.g. "Compliance", "Certifications", "Trademarks")
+  group       String?
+  order       Int      @default(100)
+
+  values      SpecializedAttributeValue[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SpecializedAttributeValue {
+  id            String   @id @default(cuid())
+  attributeId   String
+  attribute     SpecializedAttribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  valueText     String?
+  valueNumber   Float?
+  valueBool     Boolean?
+  // Polymorphic target — exactly one of these is set
+  productId     String?
+  product       Product? @relation("ProductAttrs", fields: [productId], references: [id], onDelete: Cascade)
+  categoryId    String?
+  category      Category? @relation("CategoryAttrs", fields: [categoryId], references: [id], onDelete: Cascade)
+  // Region/country code (e.g. "DE", "EU", "Gulf"). Nullable = applies generally.
+  regionCode    String?
+  // Optional source for this fact
+  sourceId      String?
+
+  createdAt     DateTime @default(now())
+
+  @@index([productId])
+  @@index([categoryId])
+  @@index([regionCode])
+  @@index([attributeId])
+}

@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html, body {
+  background: #f7f8fb;
+  color: #0b1d4d;
+}
+
+a {
+  color: inherit;
+}
