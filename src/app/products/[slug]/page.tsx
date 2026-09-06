@@ -3,6 +3,10 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ListBlock, ProductSummary, Section } from "@/components/ProductBlocks";
 import { SourceList } from "@/components/SourceList";
+import {
+  companyRelationLabel,
+  dataProvenanceLabel,
+} from "@/lib/company";
 
 export default async function ProductDetailPage({
   params,
@@ -16,6 +20,10 @@ export default async function ProductDetailPage({
       category: true,
       subcategory: true,
       sources: { include: { source: true } },
+      companies: {
+        include: { company: true },
+        orderBy: [{ company: { kind: "asc" } }, { company: { name: "asc" } }],
+      },
     },
   });
   if (!product) notFound();
@@ -132,6 +140,17 @@ export default async function ProductDetailPage({
           </p>
         </Section>
 
+        <CompaniesSection
+          relations={product.companies.filter((c) => c.relation === "SUPPLIES")}
+          title="Indian suppliers (sample)"
+          emptyText="No sample Indian suppliers linked to this product yet."
+        />
+        <CompaniesSection
+          relations={product.companies.filter((c) => c.relation === "SOURCES")}
+          title="Overseas buyers (sample)"
+          emptyText="No sample overseas buyers linked to this product yet."
+        />
+
         <Section title="Sources & citations">
           <SourceList
             items={product.sources.map((ps) => ({
@@ -160,6 +179,68 @@ export default async function ProductDetailPage({
         </Section>
       </div>
     </div>
+  );
+}
+
+function CompaniesSection({
+  relations,
+  title,
+  emptyText,
+}: {
+  relations: Array<{
+    id: string;
+    relation: string;
+    company: {
+      id: string;
+      slug: string;
+      name: string;
+      shortDescription: string | null;
+      country: string;
+      countryName: string;
+      dataProvenance: string;
+    };
+  }>;
+  title: string;
+  emptyText: string;
+}) {
+  return (
+    <Section title={title}>
+      {relations.length === 0 ? (
+        <p className="text-sm text-slate-500">{emptyText}</p>
+      ) : (
+        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {relations.map((cp) => (
+            <li
+              key={cp.id}
+              className="rounded-lg border border-slate-200 bg-slate-50 p-3"
+            >
+              <div className="flex items-center gap-2 flex-wrap">
+                <Link
+                  href={`/companies/${cp.company.slug}`}
+                  className="font-medium text-brand-900 hover:underline text-sm"
+                >
+                  {cp.company.name}
+                </Link>
+                <span className="text-xs rounded-full border border-slate-300 bg-white text-slate-700 px-2 py-0.5">
+                  {companyRelationLabel(cp.relation)}
+                </span>
+                <span className="text-xs rounded-full border border-amber-200 bg-amber-50 text-amber-800 px-2 py-0.5">
+                  {dataProvenanceLabel(cp.company.dataProvenance)}
+                </span>
+              </div>
+              {cp.company.shortDescription && (
+                <p className="mt-1 text-xs text-slate-600 line-clamp-2">
+                  {cp.company.shortDescription}
+                </p>
+              )}
+              <div className="mt-1 text-xs text-slate-500">
+                {cp.company.countryName} ({cp.company.country})
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
   );
 }
 

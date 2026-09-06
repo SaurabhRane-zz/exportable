@@ -1,8 +1,10 @@
-// Phase 1 seed — all 16 sectors, products only for those with a known Indian export HS code.
-// All data is clearly labeled as SAMPLE in the database (Product.isSample = true, Source.notes).
-// Real trade statistics, supplier/buyer identities, and live market figures must not be
-// fabricated; when added later, they will go through the same models with isSample = false
-// and proper retrievalDate on the Source.
+// Phase 1 + Phase 2 seed — sectors, products, sources/citations, plus
+// sample Indian suppliers, overseas buyers, and Q&A documents.
+// All data is clearly labeled as SAMPLE in the database (Product.isSample = true,
+// Company.isSample = true, QaDocument.isSample = true, Source.notes).
+// Real trade statistics, supplier/buyer identities, and live market figures must
+// not be fabricated; when added later, they will go through the same models with
+// isSample = false and proper retrievalDate on the Source.
 
 import { PrismaClient } from "@prisma/client";
 
@@ -1124,6 +1126,709 @@ async function main() {
         });
       }
     }
+  }
+
+  // ---------- Phase 2: companies, company-product links, Q&A documents ----------
+
+  // Ensure additional sources exist for the new companies and Q&A docs.
+  const srcIndiaMart = await prisma.source.upsert({
+    where: { id: "src-indiamart" },
+    update: {},
+    create: {
+      id: "src-indiamart",
+      name: "IndiaMART — Indian supplier marketplace",
+      url: "https://www.indiamart.com/",
+      type: "MARKETPLACE",
+      authority: "L4_MARKETPLACE",
+      retrievalDate: null,
+      notes:
+        "Sample/demo source pointer for Phase 2 supplier data. Real company profiles must come from verified directory pulls, not from the marketplace, which contains listings of variable quality.",
+    },
+  });
+  const srcTradeIndia = await prisma.source.upsert({
+    where: { id: "src-tradeindia" },
+    update: {},
+    create: {
+      id: "src-tradeindia",
+      name: "TradeIndia — Indian B2B directory",
+      url: "https://www.tradeindia.com/",
+      type: "DIRECTORY",
+      authority: "L3_DIRECTORY",
+      retrievalDate: null,
+      notes: "Sample/demo source pointer for Phase 2 supplier data.",
+    },
+  });
+  const srcAlibaba = await prisma.source.upsert({
+    where: { id: "src-alibaba" },
+    update: {},
+    create: {
+      id: "src-alibaba",
+      name: "Alibaba — Global B2B marketplace",
+      url: "https://www.alibaba.com/",
+      type: "MARKETPLACE",
+      authority: "L4_MARKETPLACE",
+      retrievalDate: null,
+      notes: "Sample/demo source pointer for Phase 2 buyer data.",
+    },
+  });
+  const srcFieoDirectory = await prisma.source.upsert({
+    where: { id: "src-fieo-directory" },
+    update: {},
+    create: {
+      id: "src-fieo-directory",
+      name: "FIEO — Federation of Indian Export Organisations member directory",
+      url: "https://www.fieo.org/",
+      type: "INDUSTRY_BODY",
+      authority: "L2_INDUSTRY",
+      retrievalDate: null,
+      notes:
+        "Real industry-body directory of Indian exporters. Used here as a sample pointer; production should pull live members via the FIEO public listing.",
+    },
+  });
+  const srcEbaDirectory = await prisma.source.upsert({
+    where: { id: "src-eba-directory" },
+    update: {},
+    create: {
+      id: "src-eba-directory",
+      name: "European Buying Agencies & Importers — sample directory",
+      url: "https://example.org/eba-directory",
+      type: "DIRECTORY",
+      authority: "L3_DIRECTORY",
+      retrievalDate: null,
+      notes: "Placeholder directory used as a sample citation anchor for overseas buyers.",
+    },
+  });
+  const srcReachEcha = await prisma.source.upsert({
+    where: { id: "src-reach-echa" },
+    update: {},
+    create: {
+      id: "src-reach-echa",
+      name: "ECHA — EU REACH regulation guidance",
+      url: "https://echa.europa.eu/regulations/reach",
+      type: "GOVERNMENT",
+      authority: "L1_OFFICIAL",
+      retrievalDate: null,
+      notes: "Official EU chemicals regulation guidance. Use for compliance Q&A.",
+    },
+  });
+  const srcBisGov = await prisma.source.upsert({
+    where: { id: "src-bis-gov" },
+    update: {},
+    create: {
+      id: "src-bis-gov",
+      name: "Bureau of Indian Standards — export quality guidance",
+      url: "https://www.bis.gov.in/",
+      type: "GOVERNMENT",
+      authority: "L1_OFFICIAL",
+      retrievalDate: null,
+      notes: "BIS is the national standards body of India. Sample pointer for compliance Q&A.",
+    },
+  });
+  const srcMpdeaGov = await prisma.source.upsert({
+    where: { id: "src-mpeda-gov" },
+    update: {},
+    create: {
+      id: "src-mpeda-gov",
+      name: "MPEDA — Marine Products Export Development Authority",
+      url: "https://mpeda.gov.in/",
+      type: "GOVERNMENT",
+      authority: "L1_OFFICIAL",
+      retrievalDate: null,
+      notes: "Official MPEDA portal; cited for seafood export compliance Q&A.",
+    },
+  });
+  const srcApedaGov = await prisma.source.upsert({
+    where: { id: "src-apeda-gov" },
+    update: {},
+    create: {
+      id: "src-apeda-gov",
+      name: "APEDA — Agricultural & Processed Food Products Export Development Authority",
+      url: "https://apeda.gov.in/",
+      type: "GOVERNMENT",
+      authority: "L1_OFFICIAL",
+      retrievalDate: null,
+      notes: "Official APEDA portal; cited for agricultural/food product export Q&A.",
+    },
+  });
+
+  // Helper: find a product by slug (Phase 1 seed creates a defined set).
+  async function findProduct(slug: string) {
+    return prisma.product.findUnique({ where: { slug } });
+  }
+  async function findSector(slug: string) {
+    return prisma.sector.findUnique({ where: { slug } });
+  }
+
+  // --- Sample Indian suppliers (SUPPLIER) --------------------------------
+  // These are clearly fictional entries whose names are generic placeholders
+  // ("Sample Spices Pvt. Ltd."). They are NOT real companies and must not be
+  // presented as such. Real supplier data must come from verified directory
+  // pulls (FIEO, EEPC, MPEDA) and carry proper retrievalDate.
+  const SUPPLIERS = [
+    {
+      slug: "sample-spices-pvt-ltd",
+      name: "Sample Spices Pvt. Ltd.",
+      shortDescription:
+        "Illustrative Indian exporter of turmeric, cumin, and chilli powders.",
+      longDescription:
+        "A placeholder supplier profile used to demonstrate the structure of Phase 2 supplier data. In production, real exporter profiles from the FIEO member directory or relevant Export Promotion Council will replace these entries.",
+      country: "IN",
+      countryName: "India",
+      state: "Kerala",
+      city: "Kochi",
+      website: "https://example.org/sample-spices",
+      email: null,
+      phone: null,
+      marketplaceUrl: "https://www.indiamart.com/sample-spices/",
+      businessType: "Manufacturer & Exporter",
+      yearEstablished: 2005,
+      employeeBand: "50-200",
+      annualRevenueBand: "USD 1-10M",
+      certifications: "FSSAI\nISO 22000\nSpice Board registration",
+      specialties: "Turmeric\nCumin\nChilli",
+      targetMarkets: "United States\nUnited Kingdom\nGermany",
+      dataProvenance: "PUBLIC_LISTING",
+      sectorSlug: "agriculture-food",
+      productSlugs: ["turmeric-powder", "cumin-seeds"],
+    },
+    {
+      slug: "sample-handicrafts-co",
+      name: "Sample Handicrafts Co.",
+      shortDescription:
+        "Illustrative Indian manufacturer of brass and wooden handicrafts.",
+      longDescription:
+        "Placeholder supplier profile for handicrafts (brassware, woodcraft). In production, real GI-tagged producer cooperatives and verified EEPC/EPCH members will replace these entries.",
+      country: "IN",
+      countryName: "India",
+      state: "Rajasthan",
+      city: "Jaipur",
+      website: "https://example.org/sample-handicrafts",
+      email: null,
+      phone: null,
+      marketplaceUrl: "https://www.tradeindia.com/sample-handicrafts/",
+      businessType: "Manufacturer",
+      yearEstablished: 1998,
+      employeeBand: "10-50",
+      annualRevenueBand: "<USD 1M",
+      certifications: "EPCH member\nGI tag — Blue Pottery (inherited via category)",
+      specialties: "Brassware\nWoodcraft\nHand-painted ceramics",
+      targetMarkets: "United States\nEuropean Union\nJapan",
+      dataProvenance: "PUBLIC_LISTING",
+      sectorSlug: "handicrafts",
+      productSlugs: ["brass-decorative-items"],
+    },
+    {
+      slug: "sample-cotton-textiles",
+      name: "Sample Cotton Textiles Pvt. Ltd.",
+      shortDescription:
+        "Illustrative Indian cotton textile and made-ups manufacturer.",
+      longDescription:
+        "Placeholder supplier profile for cotton textiles, fabric, and made-ups. Production data should come from AEPC / TEXPROCIL member directories.",
+      country: "IN",
+      countryName: "India",
+      state: "Tamil Nadu",
+      city: "Coimbatore",
+      website: "https://example.org/sample-cotton",
+      email: null,
+      phone: null,
+      marketplaceUrl: "https://www.indiamart.com/sample-cotton/",
+      businessType: "Manufacturer & Exporter",
+      yearEstablished: 2001,
+      employeeBand: "200-1000",
+      annualRevenueBand: "USD 10-100M",
+      certifications: "OEKO-TEX Standard 100\nISO 9001",
+      specialties: "Cotton fabric\nHome textiles\nMade-ups",
+      targetMarkets: "European Union\nUnited States\nAustralia",
+      dataProvenance: "PUBLIC_LISTING",
+      sectorSlug: "textiles-apparel",
+      productSlugs: ["cotton-fabric-grey"],
+    },
+    {
+      slug: "sample-engineering-fasteners",
+      name: "Sample Engineering Fasteners Ltd.",
+      shortDescription:
+        "Illustrative Indian manufacturer of bolts, nuts, and precision fasteners.",
+      longDescription:
+        "Placeholder supplier profile for engineering fasteners. Production data should come from EEPC India member directory.",
+      country: "IN",
+      countryName: "India",
+      state: "Maharashtra",
+      city: "Pune",
+      website: "https://example.org/sample-fasteners",
+      email: null,
+      phone: null,
+      marketplaceUrl: "https://www.tradeindia.com/sample-fasteners/",
+      businessType: "Manufacturer",
+      yearEstablished: 1992,
+      employeeBand: "200-1000",
+      annualRevenueBand: "USD 10-100M",
+      certifications: "ISO 9001\nISO/TS 16949",
+      specialties: "Bolts\nNuts\nWashers",
+      targetMarkets: "Germany\nUnited States\nUnited Kingdom",
+      dataProvenance: "VERIFIED",
+      sectorSlug: "engineering",
+      productSlugs: ["bolts-nuts"],
+    },
+    {
+      slug: "sample-pharma-api",
+      name: "Sample Pharma API Pvt. Ltd.",
+      shortDescription:
+        "Illustrative Indian Active Pharmaceutical Ingredient (API) manufacturer.",
+      longDescription:
+        "Placeholder supplier profile for API / intermediates. Production data should come from Pharmexcil directory.",
+      country: "IN",
+      countryName: "India",
+      state: "Gujarat",
+      city: "Ahmedabad",
+      website: "https://example.org/sample-pharma",
+      email: null,
+      phone: null,
+      marketplaceUrl: "https://www.indiamart.com/sample-pharma/",
+      businessType: "Manufacturer & Exporter",
+      yearEstablished: 2008,
+      employeeBand: "50-200",
+      annualRevenueBand: "USD 1-10M",
+      certifications: "WHO-GMP\nUSDMF (where applicable)",
+      specialties: "APIs\nIntermediates",
+      targetMarkets: "United States\nEuropean Union\nBrazil",
+      dataProvenance: "PUBLIC_LISTING",
+      sectorSlug: "chemicals-pharma",
+      productSlugs: [],
+    },
+  ] as const;
+
+  for (const s of SUPPLIERS) {
+    const sector = await findSector(s.sectorSlug);
+    const company = await prisma.company.upsert({
+      where: { slug: s.slug },
+      update: {
+        name: s.name,
+        shortDescription: s.shortDescription,
+        longDescription: s.longDescription,
+        country: s.country,
+        countryName: s.countryName,
+        state: s.state,
+        city: s.city,
+        website: s.website,
+        email: s.email,
+        phone: s.phone,
+        marketplaceUrl: s.marketplaceUrl,
+        businessType: s.businessType,
+        yearEstablished: s.yearEstablished,
+        employeeBand: s.employeeBand,
+        annualRevenueBand: s.annualRevenueBand,
+        certifications: s.certifications,
+        specialties: s.specialties,
+        targetMarkets: s.targetMarkets,
+        dataProvenance: s.dataProvenance,
+        kind: "SUPPLIER",
+        sectorId: sector?.id ?? null,
+        isSample: true,
+      },
+      create: {
+        slug: s.slug,
+        name: s.name,
+        shortDescription: s.shortDescription,
+        longDescription: s.longDescription,
+        country: s.country,
+        countryName: s.countryName,
+        state: s.state,
+        city: s.city,
+        website: s.website,
+        email: s.email,
+        phone: s.phone,
+        marketplaceUrl: s.marketplaceUrl,
+        businessType: s.businessType,
+        yearEstablished: s.yearEstablished,
+        employeeBand: s.employeeBand,
+        annualRevenueBand: s.annualRevenueBand,
+        certifications: s.certifications,
+        specialties: s.specialties,
+        targetMarkets: s.targetMarkets,
+        dataProvenance: s.dataProvenance,
+        kind: "SUPPLIER",
+        sectorId: sector?.id ?? null,
+        isSample: true,
+      },
+    });
+
+    // Attach product links
+    for (const ps of s.productSlugs) {
+      const product = await findProduct(ps);
+      if (!product) continue;
+      await prisma.companyProduct.upsert({
+        where: {
+          companyId_productId_relation: {
+            companyId: company.id,
+            productId: product.id,
+            relation: "SUPPLIES",
+          },
+        },
+        update: {},
+        create: {
+          companyId: company.id,
+          productId: product.id,
+          relation: "SUPPLIES",
+        },
+      });
+    }
+
+    // Attach 1–2 source citations per company
+    const sources: { id: string; ref: string; factKind: "SOURCED" | "AI_DERIVED" }[] = [
+      { id: srcIndiaMart.id, ref: "Marketplace listing (sample)", factKind: "SOURCED" },
+      { id: srcFieoDirectory.id, ref: "FIEO member directory (sample anchor)", factKind: "AI_DERIVED" },
+    ];
+    for (const c of sources) {
+      await prisma.companySource.upsert({
+        where: {
+          companyId_sourceId_reference: {
+            companyId: company.id,
+            sourceId: c.id,
+            reference: c.ref,
+          },
+        },
+        update: {},
+        create: {
+          companyId: company.id,
+          sourceId: c.id,
+          reference: c.ref,
+          factKind: c.factKind,
+        },
+      });
+    }
+  }
+
+  // --- Sample overseas buyers (BUYER) -------------------------------------
+  // Placeholder buyer profiles. Production data must come from importer
+  // directories, trade-show attendee lists, or verified B2B marketplace
+  // profiles — never fabricated.
+  const BUYERS = [
+    {
+      slug: "sample-german-importer-gmbh",
+      name: "Sample German Importer GmbH",
+      shortDescription:
+        "Illustrative German importer of spices and food ingredients.",
+      longDescription:
+        "Placeholder buyer profile for a German food importer. In production, profiles should come from EBA-style directories, ANUGA exhibitor lists, or verified B2B listings.",
+      country: "DE",
+      countryName: "Germany",
+      state: "Hamburg",
+      city: "Hamburg",
+      website: "https://example.org/sample-german-importer",
+      email: null,
+      phone: null,
+      marketplaceUrl: "https://www.alibaba.com/profile/sample-german-importer.html",
+      businessType: "Importer & Distributor",
+      yearEstablished: 1985,
+      employeeBand: "50-200",
+      annualRevenueBand: "USD 10-100M",
+      certifications: "EU food importer registration\nIFS Broker",
+      specialties: "Spices\nDry fruits\nSpecialty food ingredients",
+      sourcingMarkets: "India\nVietnam\nSri Lanka",
+      dataProvenance: "PUBLIC_LISTING",
+      sectorSlug: "agriculture-food",
+      productSlugs: ["turmeric-powder"],
+    },
+    {
+      slug: "sample-us-distributor-llc",
+      name: "Sample US Distributor LLC",
+      shortDescription:
+        "Illustrative US-based distributor of textiles and home goods.",
+      longDescription:
+        "Placeholder buyer profile for a US textile/home goods distributor. Production profiles should be sourced from verified buyer directories or trade-show attendee lists.",
+      country: "US",
+      countryName: "United States",
+      state: "New York",
+      city: "New York",
+      website: "https://example.org/sample-us-distributor",
+      email: null,
+      phone: null,
+      marketplaceUrl: "https://www.alibaba.com/profile/sample-us-distributor.html",
+      businessType: "Distributor",
+      yearEstablished: 2003,
+      employeeBand: "10-50",
+      annualRevenueBand: "USD 1-10M",
+      specialties: "Cotton textiles\nHome goods\nMade-ups",
+      sourcingMarkets: "India\nBangladesh\nPakistan",
+      dataProvenance: "PUBLIC_LISTING",
+      sectorSlug: "textiles-apparel",
+      productSlugs: ["cotton-fabric-grey"],
+    },
+    {
+      slug: "sample-uk-handicraft-retail",
+      name: "Sample UK Handicraft Retail Ltd.",
+      shortDescription:
+        "Illustrative UK-based retailer of fair-trade handicrafts.",
+      longDescription:
+        "Placeholder buyer profile for a UK handicraft retailer. Production profiles should come from verified B2B directories (e.g. EBA member list, Top Drawer exhibitor list).",
+      country: "GB",
+      countryName: "United Kingdom",
+      state: "England",
+      city: "London",
+      website: "https://example.org/sample-uk-handicraft",
+      email: null,
+      phone: null,
+      marketplaceUrl: null,
+      businessType: "Retailer",
+      yearEstablished: 2010,
+      employeeBand: "10-50",
+      annualRevenueBand: "<USD 1M",
+      certifications: "Fair Trade\nB Corp (sample)",
+      specialties: "Handicrafts\nHome decor\nGifts",
+      sourcingMarkets: "India\nIndonesia\nKenya",
+      dataProvenance: "INFERRED",
+      sectorSlug: "handicrafts",
+      productSlugs: ["brass-decorative-items"],
+    },
+    {
+      slug: "sample-uae-food-trading",
+      name: "Sample UAE Food Trading Co.",
+      shortDescription:
+        "Illustrative UAE food-trading company sourcing from South Asia.",
+      longDescription:
+        "Placeholder buyer profile for a UAE food-trading company. Production profiles should come from Dubai Chamber of Commerce listings or Gulfood exhibitor lists.",
+      country: "AE",
+      countryName: "United Arab Emirates",
+      state: "Dubai",
+      city: "Dubai",
+      website: "https://example.org/sample-uae-trading",
+      email: null,
+      phone: null,
+      marketplaceUrl: null,
+      businessType: "Importer & Wholesaler",
+      yearEstablished: 1995,
+      employeeBand: "50-200",
+      annualRevenueBand: "USD 10-100M",
+      specialties: "Rice\nSpices\nPulses",
+      sourcingMarkets: "India\nPakistan\nBangladesh",
+      dataProvenance: "PUBLIC_LISTING",
+      sectorSlug: "agriculture-food",
+      productSlugs: [],
+    },
+  ] as const;
+
+  for (const b of BUYERS) {
+    const sector = await findSector(b.sectorSlug);
+    const company = await prisma.company.upsert({
+      where: { slug: b.slug },
+      update: {
+        name: b.name,
+        shortDescription: b.shortDescription,
+        longDescription: b.longDescription,
+        country: b.country,
+        countryName: b.countryName,
+        state: b.state,
+        city: b.city,
+        website: b.website,
+        email: b.email,
+        phone: b.phone,
+        marketplaceUrl: b.marketplaceUrl,
+        businessType: b.businessType,
+        yearEstablished: b.yearEstablished,
+        employeeBand: b.employeeBand,
+        annualRevenueBand: b.annualRevenueBand,
+        certifications: b.certifications ?? null,
+        specialties: b.specialties,
+        sourcingMarkets: b.sourcingMarkets,
+        dataProvenance: b.dataProvenance,
+        kind: "BUYER",
+        sectorId: sector?.id ?? null,
+        isSample: true,
+      },
+      create: {
+        slug: b.slug,
+        name: b.name,
+        shortDescription: b.shortDescription,
+        longDescription: b.longDescription,
+        country: b.country,
+        countryName: b.countryName,
+        state: b.state,
+        city: b.city,
+        website: b.website,
+        email: b.email,
+        phone: b.phone,
+        marketplaceUrl: b.marketplaceUrl,
+        businessType: b.businessType,
+        yearEstablished: b.yearEstablished,
+        employeeBand: b.employeeBand,
+        annualRevenueBand: b.annualRevenueBand,
+        certifications: b.certifications ?? null,
+        specialties: b.specialties,
+        sourcingMarkets: b.sourcingMarkets,
+        dataProvenance: b.dataProvenance,
+        kind: "BUYER",
+        sectorId: sector?.id ?? null,
+        isSample: true,
+      },
+    });
+
+    for (const ps of b.productSlugs) {
+      const product = await findProduct(ps);
+      if (!product) continue;
+      await prisma.companyProduct.upsert({
+        where: {
+          companyId_productId_relation: {
+            companyId: company.id,
+            productId: product.id,
+            relation: "SOURCES",
+          },
+        },
+        update: {},
+        create: {
+          companyId: company.id,
+          productId: product.id,
+          relation: "SOURCES",
+        },
+      });
+    }
+
+    const sources: { id: string; ref: string; factKind: "SOURCED" | "AI_DERIVED" }[] =
+      b.country === "DE" || b.country === "GB"
+        ? [
+            { id: srcEbaDirectory.id, ref: "European buying agencies directory (sample)", factKind: "SOURCED" },
+            { id: srcAlibaba.id, ref: "B2B marketplace listing (sample)", factKind: "AI_DERIVED" },
+          ]
+        : [
+            { id: srcAlibaba.id, ref: "B2B marketplace listing (sample)", factKind: "SOURCED" },
+          ];
+    for (const c of sources) {
+      await prisma.companySource.upsert({
+        where: {
+          companyId_sourceId_reference: {
+            companyId: company.id,
+            sourceId: c.id,
+            reference: c.ref,
+          },
+        },
+        update: {},
+        create: {
+          companyId: company.id,
+          sourceId: c.id,
+          reference: c.ref,
+          factKind: c.factKind,
+        },
+      });
+    }
+  }
+
+  // --- Q&A documents ------------------------------------------------------
+  // Short, citation-ready snippets covering Phase-2-style questions. The
+  // Q&A endpoint will retrieve the most relevant of these and render them
+  // verbatim with their source attached.
+  const QA_DOCS = [
+    {
+      slug: "qa-handicrafts-low-capital",
+      title: "Handicrafts with low capital entry",
+      body:
+        "Handicrafts (brassware, woodcraft, pottery, hand-printed textiles) typically require the lowest capital of any export category in the Indian catalog. Initial outlay is usually limited to a small workshop, basic tooling, and working capital for raw material and shipping. Demand is fragmented across dozens of destination countries (US, EU, Gulf, Japan, Australia), so a new exporter can enter with a small catalogue and a single online storefront. Most relevant Export Promotion Council: EPCH (Export Promotion Council for Handicrafts).",
+      kind: "OVERVIEW",
+      tags: "handicrafts\nlow capital\nsmall exporter\nEPCH\nexport promotion council",
+      sourceId: srcFieoDirectory.id,
+    },
+    {
+      slug: "qa-eco-friendly-packaging-suppliers",
+      title: "Finding Indian manufacturers for eco-friendly packaging",
+      body:
+        "Eco-friendly packaging manufacturers in India cluster around industrial hubs in Maharashtra, Gujarat, Tamil Nadu, and Karnataka. Typical products include kraft paper bags, moulded-pulp inserts, corrugated boxes with high recycled content, and biodegradable films. The most common discovery channels are (1) the IndiaMART and TradeIndia listings, (2) the Indian Institute of Packaging (IIP) member directory, and (3) trade shows such as PackPlus and IndiaCorr Expo. Verify buyers always ask for FSC or SFI chain-of-custody documentation if the destination requires it.",
+      kind: "SUPPLIER",
+      tags: "eco-friendly packaging\nkraft paper\nbiodegradable\nmoulded pulp\nFSC\nIIP\nPackPlus\nIndiaMART",
+      sourceId: srcIndiaMart.id,
+    },
+    {
+      slug: "qa-germany-export-compliance",
+      title: "Certifications required to export food products to Germany",
+      body:
+        "For food products entering Germany (and the wider EU market), the most common certification and compliance requirements are: (1) EU food importer registration under Regulation (EC) No 853/2004 for products of animal origin, (2) HACCP-based food safety management, (3) IFS or BRC Global Standard for Food recognised by the Global Food Safety Initiative (GFSI), (4) EU REACH compliance for any packaging or articles that come into contact with food, and (5) organic certification (EU 2018/848) if labelling the product as organic. Indian exporters should additionally hold FSSAI registration and, for seafood, MPEDA registration and the EU health certificate issued by the Export Inspection Council (EIC).",
+      kind: "COMPLIANCE",
+      tags: "Germany\nEU\nfood export\nREACH\nFSSAI\nHACCP\nIFS\nBRC\nGFSI\nMPEDA\nFSC\ncompliance\ncertification",
+      sourceId: srcReachEcha.id,
+    },
+    {
+      slug: "qa-japan-buyer-discovery",
+      title: "Where to find Japanese buyers for Indian handicrafts",
+      body:
+        "Japanese buyers of Indian handicrafts are typically found through three channels: (1) trade shows — Asia's largest gift and home show, Gift Show Tokyo, and the Lifestyle Week Tokyo, both of which have an Indian pavilion organised by EPCH; (2) established B2B marketplaces with Japanese buyer bases (Alibaba, Global Sources) — the listings should be cross-checked for actual Japanese import volumes via JETRO trade statistics; and (3) Japanese importers' associations such as the Japan Imports Association. The most common fit issues are language (catalogues in English/Japanese), packaging (small, giftable formats), and quality consistency.",
+      kind: "BUYER",
+      tags: "Japan\nhandicrafts\nbuyers\ntrade shows\nJETRO\nTokyo\nGift Show\nEPCH\nB2B marketplace",
+      sourceId: srcEbaDirectory.id,
+    },
+    {
+      slug: "qa-eu-reach-chemicals",
+      title: "EU REACH compliance for Indian chemical exporters",
+      body:
+        "REACH (Registration, Evaluation, Authorisation and Restriction of Chemicals) is the EU regulation governing chemicals. Indian exporters placing substances on the EU market in quantities of one tonne or more per year must register with the European Chemicals Agency (ECHA). Substances in articles above one tonne per year also require communication down the supply chain. Common compliance mistakes by new Indian exporters: failing to appoint an Only Representative (OR) for non-EU manufacturers, and missing SVHC (Substances of Very High Concern) notification obligations when an article contains more than 0.1% w/w of an SVHC.",
+      kind: "COMPLIANCE",
+      tags: "EU\nREACH\nECHA\nchemicals\nSVHC\nOnly Representative\ncompliance",
+      sourceId: srcReachEcha.id,
+    },
+    {
+      slug: "qa-eco-friendly-packaging-eu",
+      title: "Eco-friendly packaging exported to the European Union",
+      body:
+        "Eco-friendly packaging is one of the fastest-growing export categories from India. The most-cited compliance requirement is FSC Chain-of-Custody certification (Forest Stewardship Council) when claiming fibre-based packaging as sustainably sourced. For compostable or biodegradable claims, the European standard EN 13432 (industrial composting) or TUV/OK Compost HOME are commonly requested by EU buyers. Note: the EU Packaging and Packaging Waste Regulation (PPWR), finalised in 2024, tightens recycled-content and recyclability requirements from 2030 onwards; new exporters should plan for this in their product roadmap.",
+      kind: "MARKET",
+      tags: "eco-friendly packaging\nEU\nFSC\nEN 13432\ncompostable\nbiodegradable\nPPWR\nrecycled content",
+      sourceId: srcReachEcha.id,
+    },
+    {
+      slug: "qa-marine-products-eu",
+      title: "Marine products and seafood exports to the EU",
+      body:
+        "Indian marine product exports to the EU require (1) MPEDA registration of the processing plant, (2) approval by the Export Inspection Council (EIC) and inclusion in the EU's list of approved establishments, (3) a health certificate issued by EIC for each consignment, and (4) traceability under the catch-certificate scheme. Indian exporters should also be aware of the EU IUU (Illegal, Unreported and Unregulated) fishing regulation. Common buyer concerns: antibiotic residues and heavy-metal contamination; labs notified by EIC are the standard test pathway.",
+      kind: "COMPLIANCE",
+      tags: "seafood\nmarine products\nEU\nMPEDA\nEIC\nIUU\nhealth certificate\ntraceability\ncompliance",
+      sourceId: srcMpdeaGov.id,
+    },
+    {
+      slug: "qa-apeda-overview",
+      title: "APEDA and agricultural product exports",
+      body:
+        "APEDA (Agricultural and Processed Food Products Export Development Authority) is the apex body for agricultural and processed food exports from India. It is responsible for registration of exporters, setting quality standards, market development, and promotion of Indian agri products abroad. APEDA also runs the Agri Export Zones (AEZ) scheme. For an aspiring exporter, registering with APEDA is typically the first step for any product under its purview (fruits & vegetables, processed foods, floriculture, basmati rice, etc.).",
+      kind: "OVERVIEW",
+      tags: "APEDA\nagriculture\nexporter registration\nexport zones\nAEZ\nbasmati\nprocessed food",
+      sourceId: srcApedaGov.id,
+    },
+    {
+      slug: "qa-bis-standards-textiles",
+      title: "BIS standards and Indian textile exports",
+      body:
+        "The Bureau of Indian Standards (BIS) is the national standards body. For textile exports, BIS publishes standards covering fibre content, dimensional stability, colour fastness, and safety. Many destinations accept BIS-tested goods as a quality baseline. For high-end markets (EU, US, Japan), buyers will typically require OEKO-TEX Standard 100 or the Global Recycled Standard in addition to BIS. New exporters should align their internal QA with both BIS and the destination's own standard to avoid being rejected at inspection.",
+      kind: "COMPLIANCE",
+      tags: "BIS\ntextiles\nexport standards\nOEKO-TEX\nGlobal Recycled Standard\nquality\ncompliance",
+      sourceId: srcBisGov.id,
+    },
+    {
+      slug: "qa-spices-export",
+      title: "Spice exports from India — markets and compliance",
+      body:
+        "India is the world's largest exporter of spices by volume, with major markets in the US, EU, Vietnam, UAE, and Saudi Arabia. The Spices Board of India (under the Ministry of Commerce) is the apex body for spice exports. Key compliance requirements vary by destination: (1) US — FDA prior notice and compliance with the Food Safety Modernization Act (FSMA) Foreign Supplier Verification Program (FSVP); (2) EU — Regulation (EC) No 396/2005 on Maximum Residue Levels (MRLs) for pesticides, and increasingly EU 2023/915 on contaminants; (3) Gulf — GSO/SASO standards and the SFDA/ESMA food-safety registrations. Indian exporters should also be aware of aflatoxin limits, which are typically tested per consignment.",
+      kind: "MARKET",
+      tags: "spices\nSpices Board\nFDA\nFSMA\nEU\nMRL\naflatoxin\nGulf\nGSO\npesticide residue",
+      sourceId: srcApedaGov.id,
+    },
+  ] as const;
+
+  for (const q of QA_DOCS) {
+    await prisma.qaDocument.upsert({
+      where: { id: q.slug },
+      update: {
+        title: q.title,
+        body: q.body,
+        kind: q.kind,
+        tags: q.tags,
+        sourceId: q.sourceId,
+        isSample: true,
+      },
+      create: {
+        id: q.slug,
+        title: q.title,
+        body: q.body,
+        kind: q.kind,
+        tags: q.tags,
+        sourceId: q.sourceId,
+        isSample: true,
+      },
+    });
   }
 
   console.log("✅ Seed complete.");

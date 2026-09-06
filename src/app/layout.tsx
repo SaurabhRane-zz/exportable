@@ -29,6 +29,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 Products
               </Link>
               <Link
+                href="/companies"
+                className="text-slate-700 hover:text-brand-700"
+              >
+                Companies
+              </Link>
+              <Link
+                href="/search"
+                className="text-slate-700 hover:text-brand-700"
+              >
+                Search
+              </Link>
+              <Link
+                href="/ask"
+                className="text-slate-700 hover:text-brand-700"
+              >
+                Ask
+              </Link>
+              <Link
                 href="/about"
                 className="text-slate-700 hover:text-brand-700"
               >
@@ -41,8 +59,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <footer className="border-t border-slate-200 bg-white">
           <div className="max-w-6xl mx-auto px-4 py-4 text-xs text-slate-500 flex flex-col sm:flex-row gap-2 sm:justify-between">
             <span>
-              © {new Date().getFullYear()} Exportable. Phase 1 MVP — all product
-              data is sample/demo content, clearly labeled.
+              © {new Date().getFullYear()} Exportable. Phase 2 — search, natural-language research, and supplier/buyer discovery. All product, supplier, and buyer data is sample/demo content, clearly labeled.
             </span>
             <span>
               Sources are ranked by authority. AI-derived notes are clearly

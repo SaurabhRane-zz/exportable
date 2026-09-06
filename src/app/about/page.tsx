@@ -7,20 +7,38 @@ export default function AboutPage() {
       <p>
         Exportable is a research and discovery platform for aspiring and
         existing Indian exporters. It organises the universe of Indian
-        exportable products by sector, surfaces research on each product, and —
-        in later phases — helps find Indian manufacturers and overseas buyers
-        with cited, evidence-grounded information.
+        exportable products by sector, surfaces research on each product,
+        supports natural-language research questions, and helps find Indian
+        manufacturers and overseas buyers with cited, evidence-grounded
+        information.
       </p>
-      <h2 className="text-lg font-semibold text-brand-900">What's in this build</h2>
-      <p>
-        This is <strong>Phase 1 (MVP)</strong>. It delivers a flexible
-        sector-wise catalog, a comprehensive product profile with citations,
-        and a clearly-labeled data model that allows new sectors, categories,
-        and specialized attributes to be added without code changes. Natural
-        language research, supplier/buyer discovery, and the recommendation
-        engine arrive in later phases.
-      </p>
-      <h2 className="text-lg font-semibold text-brand-900">Trust & data policy</h2>
+      <h2 className="text-lg font-semibold text-brand-900">What&apos;s in this build (Phase 2)</h2>
+      <ul className="list-disc list-inside space-y-1">
+        <li>
+          <strong>Structured search</strong> across products, Indian suppliers,
+          and overseas buyers — by sector, country, capital, demand, and free-text
+          keyword. See <Link className="text-brand-700 hover:underline" href="/search">/search</Link>.
+        </li>
+        <li>
+          <strong>Natural-language research</strong>: ask questions in plain
+          English and get a cited, evidence-grounded answer drawn from the
+          indexed source documents. See{" "}
+          <Link className="text-brand-700 hover:underline" href="/ask">/ask</Link>.
+        </li>
+        <li>
+          <strong>Supplier and buyer discovery</strong>: a unified Companies
+          view that distinguishes Indian suppliers from overseas buyers,
+          surfaces data provenance (verified / public listing / inferred /
+          AI-derived), and lists cited sources per company. See{" "}
+          <Link className="text-brand-700 hover:underline" href="/companies">/companies</Link>.
+        </li>
+        <li>
+          <strong>Product profile updates</strong>: each product profile now
+          shows linked sample suppliers and buyers alongside compliance and
+          sources.
+        </li>
+      </ul>
+      <h2 className="text-lg font-semibold text-brand-900">Trust &amp; data policy</h2>
       <ul className="list-disc list-inside space-y-1">
         <li>All quantitative fields in this build are <strong>sample data</strong>, not live trade statistics.</li>
         <li>No fabricated supplier, buyer, or company information is presented as real.</li>
@@ -28,6 +46,11 @@ export default function AboutPage() {
         <li>
           When live data integrations are added, every fact will carry a source
           and a retrieval date.
+        </li>
+        <li>
+          The natural-language Q&amp;A pipeline is retrieval-only: answers are
+          composed from quoted snippets of indexed source documents. No
+          language model is allowed to invent facts.
         </li>
       </ul>
       <p>

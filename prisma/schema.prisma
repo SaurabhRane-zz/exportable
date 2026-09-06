@@ -1,5 +1,7 @@
 // Indian Exportable Products Researcher & Recommendation Engine
 // Phase 1 — flexible catalog + sources data model
+// Phase 2 — Company (supplier + buyer), Company-Product join, citations on companies,
+//           and QaDocument collection for retrieval-augmented question answering.
 
 generator client {
   provider = "prisma-client-js"
@@ -24,6 +26,7 @@ model Sector {
   categories  Category[]
   products    Product[]
   sources     Source[]   @relation("SectorSources")
+  companies   Company[]
 
   @@index([order])
 }
@@ -83,6 +86,7 @@ model Product {
 
   attributeValues SpecializedAttributeValue[] @relation("ProductAttrs")
   sources         ProductSource[]
+  companies       CompanyProduct[]
 
   @@index([sectorId])
   @@index([categoryId])
@@ -108,6 +112,8 @@ model Source {
 
   sectors        Sector[]      @relation("SectorSources")
   products       ProductSource[]
+  companies      CompanySource[]
+  qaDocuments    QaDocument[]
 
   createdAt      DateTime      @default(now())
 
@@ -174,4 +180,130 @@ model SpecializedAttributeValue {
   @@index([categoryId])
   @@index([regionCode])
   @@index([attributeId])
+}
+
+// ---------- Phase 2: Companies (suppliers + overseas buyers) ----------
+// A single Company model covers both Indian suppliers/manufacturers and overseas
+// buyers (importers, distributors, retailers, B2B). `kind` distinguishes them, and
+// `country` doubles as the discriminator the UI uses to render them in the right
+// section. The unified schema keeps the profile page and the search experience
+// consistent across both audiences.
+//
+// dataProvenance captures whether a fact is "VERIFIED" (e.g. parsed from a
+// government directory with a retrieval date), "PUBLIC_LISTING" (scraped from
+// a marketplace/directory), "INFERRED" (AI-inferred from public web pages), or
+// "AI_DERIVED" (generated text, not tied to a single source).
+
+model Company {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  name            String
+  // SUPPLIER (Indian manufacturer/exporter) or BUYER (overseas importer/distributor/retailer)
+  kind            String
+  // Free-text summary shown on listing cards
+  shortDescription String?
+  longDescription  String?
+
+  // Location
+  country         String    // ISO-3166 alpha-2 (e.g. "IN", "DE", "US")
+  countryName     String    // Human label (e.g. "India", "Germany", "United States")
+  state           String?   // Indian state for SUPPLIER, region for BUYER
+  city            String?
+
+  // Contact (all public, where available)
+  website         String?
+  email           String?
+  phone           String?
+  // Marketplace/directory profile URL (e.g. IndiaMART, Alibaba, TradeIndia)
+  marketplaceUrl  String?
+
+  // Categorisation
+  sectorId        String?
+  sector          Sector?   @relation(fields: [sectorId], references: [id])
+  businessType    String?   // "Manufacturer", "Exporter", "Importer", "Distributor", "Retailer"
+  yearEstablished Int?
+  employeeBand    String?   // "<10", "10-50", "50-200", "200-1000", "1000+"
+  annualRevenueBand String? // e.g. "<USD 1M", "USD 1-10M", "USD 10-100M", "USD 100M+"
+
+  // Trust labels
+  isSample        Boolean   @default(true)
+  // VERIFIED | PUBLIC_LISTING | INFERRED | AI_DERIVED
+  dataProvenance  String   @default("PUBLIC_LISTING")
+  verifiedAt      DateTime?
+
+  // Free-form newline-separated lists
+  certifications  String?   // e.g. "ISO 9001\nFDA registered\nHalal"
+  specialties     String?   // free-form specialty tags
+  targetMarkets   String?   // for suppliers: where they currently sell
+  sourcingMarkets String?   // for buyers: where they source from
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  products        CompanyProduct[]
+  sources         CompanySource[]
+
+  @@index([kind])
+  @@index([country])
+  @@index([sectorId])
+}
+
+model CompanyProduct {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  // SUPPLIES | SELLS | DISTRIBUTES | SOURCES
+  relation    String   @default("SUPPLIES")
+  notes       String?
+
+  createdAt   DateTime @default(now())
+
+  @@unique([companyId, productId, relation])
+  @@index([companyId])
+  @@index([productId])
+}
+
+model CompanySource {
+  companyId  String
+  sourceId   String
+  reference  String   @default("—")
+  factKind   String   @default("SOURCED") // SOURCED | AI_DERIVED
+
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  source     Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, sourceId, reference])
+}
+
+// ---------- Phase 2: Retrieval-Augmented Q&A ----------
+// QaDocument is a short, citation-ready snippet (a paragraph or note) tied to a
+// Source. The Q&A endpoint retrieves the top-N QaDocuments that match a user's
+// question, then composes a cited answer from them. Storing the documents as
+// data (not in a vector DB) keeps Phase 2 simple and reviewable: a maintainer
+// can read every snippet the model might quote. A vector index can be layered
+// on later (see Phase 4 hardening) without changing the schema.
+//
+// kind classifies the document so the retriever can filter (e.g. only "COMPLIANCE"
+// docs for a compliance question).
+//
+// tags is a newline-separated list of search-friendly keywords ("EU REACH",
+// "Germany", "eco-friendly packaging", etc.) — the retriever does cheap
+// keyword scoring across these plus the title/body.
+
+model QaDocument {
+  id          String   @id @default(cuid())
+  title       String
+  body        String   // the snippet the model may quote
+  kind        String   // OVERVIEW | COMPLIANCE | MARKET | SUPPLIER | BUYER | GENERAL
+  tags        String?  // newline-separated keywords
+  sourceId    String?
+  source      Source?  @relation(fields: [sourceId], references: [id])
+  isSample    Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([kind])
 }
