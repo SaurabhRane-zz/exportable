@@ -8,7 +8,7 @@ npx prisma db push --skip-generate
 
 if [ -f prisma/seed.ts ]; then
   echo "[entrypoint] running db seed..."
-  npm run db:seed || echo "[entrypoint] seed failed (continuing)"
+  npm run db:seed
 fi
 
 echo "[entrypoint] starting app..."
